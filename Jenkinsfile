@@ -6,10 +6,6 @@ pipeline {
         maven 'Maven3'
     }
 
-    environment {
-        JENKINS_API_TOKEN = credentials('JENKINS_API_TOKEN')  // Securely use the API Token
-    }
-
     stages {
         stage("Cleanup Workspace") {
             steps {
@@ -20,12 +16,6 @@ pipeline {
         stage("Checkout from SCM") {
             steps {
                 git branch: 'main', credentialsId: 'github', url: 'https://github.com/Chinaza17/Register-App.git'
-            }
-        }
-
-        stage("Verify API Token") {
-            steps {
-                sh 'echo "✅ API Token is set and ready to use."'
             }
         }
 
@@ -40,14 +30,36 @@ pipeline {
                 sh "mvn test"
             }
         }
+
+        stage("Build & Push Docker Image") {
+            steps {
+                sh '''
+                docker build -t my-app:latest .
+                docker tag my-app:latest your-dockerhub-username/my-app:latest
+                docker login -u your-dockerhub-username -p your-dockerhub-password
+                docker push your-dockerhub-username/my-app:latest
+                '''
+            }
+        }
+
+        stage("Deploy Application") {
+            steps {
+                sh '''
+                docker pull your-dockerhub-username/my-app:latest
+                docker stop my-app-container || true
+                docker rm my-app-container || true
+                docker run -d --name my-app-container -p 8080:8080 your-dockerhub-username/my-app:latest
+                '''
+            }
+        }
     }
 
     post {
         success {
-            echo "🎉 Build and tests succeeded!"
+            echo "🎉 Deployment successful!"
         }
         failure {
-            echo "❌ Build failed. Check logs for errors."
+            echo "❌ Deployment failed. Check logs for errors."
         }
     }
 }
